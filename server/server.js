@@ -1,13 +1,13 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import path from "path";
 import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -16,17 +16,24 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// ===============================
-// GEMINI INVOICE ANALYSIS API
-// ===============================
+// Health check
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Invoice Exception Cockpit API is running",
+  });
+});
 
+// AI Invoice Analysis
 app.post("/api/analyze-invoice", async (req, res) => {
   try {
     const invoice = req.body;
 
+    // Calculate quantity difference
     const difference =
       invoice.invoiceQuantity - invoice.receivedQuantity;
 
+    // AI prompt
     const prompt = `
 You are an AI assistant supporting a Finance / Accounts Payable team
 in a Purchase-to-Pay (P2P) invoice exception management system.
@@ -78,15 +85,18 @@ Next Step:
 [Give one practical verification or processing step for the Finance/AP employee.]
 `;
 
+    // Call Gemini
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
     });
 
+    // Send AI response to frontend
     res.json({
       success: true,
       analysis: response.text,
     });
+
   } catch (error) {
     console.error("Gemini API Error:", error);
 
@@ -98,25 +108,11 @@ Next Step:
   }
 });
 
-// ===============================
-// SERVE REACT FRONTEND
-// ===============================
-
-const distPath = path.resolve(process.cwd(), "dist");
-
-app.use(express.static(distPath));
-
-// Main application
-app.get("/", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
-});
-
-// ===============================
-// START SERVER
-// ===============================
-
+// Render provides PORT automatically
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Invoice Exception Cockpit running on port ${PORT}`);
+  console.log(
+    `Invoice Exception Cockpit API running on port ${PORT}`
+  );
 });

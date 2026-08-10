@@ -1,11 +1,29 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const app = express();
+
+// =====================================================
+// PATH CONFIGURATION
+// =====================================================
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// server/server.js
+//       ↓
+// project root
+//       ↓
+// dist
+const frontendPath = path.join(__dirname, "..", "dist");
+
+console.log("Frontend path:", frontendPath);
 
 // =====================================================
 // MIDDLEWARE
@@ -20,17 +38,6 @@ app.use(express.json());
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
-});
-
-// =====================================================
-// ROOT ROUTE
-// =====================================================
-
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Invoice Exception Cockpit API is running",
-  });
 });
 
 // =====================================================
@@ -62,13 +69,14 @@ app.post("/api/analyze-invoice", async (req, res) => {
 You are an AI assistant supporting a Finance / Accounts Payable team
 in a Purchase-to-Pay (P2P) invoice exception management system.
 
-Analyze the invoice information provided below.
+Your task is to analyze the invoice information provided below and
+give a concise, evidence-based business recommendation.
 
 IMPORTANT RULES:
 
 1. Use ONLY the information provided.
 2. Do not invent facts.
-3. Do not assume goods are damaged, lost, or in transit.
+3. Do not assume that goods are damaged, lost, or in transit.
 4. If additional verification is required, clearly say what should be verified.
 5. The Finance/AP employee remains responsible for the final decision.
 6. Focus on invoice accuracy, payment risk, and exception handling.
@@ -129,16 +137,29 @@ Next Step:
 });
 
 // =====================================================
-// ERROR HANDLER
+// SERVE REACT / VITE PRODUCTION BUILD
 // =====================================================
 
-app.use((err, req, res, next) => {
-  console.error("Server Error:", err);
+app.use(express.static(frontendPath));
 
-  res.status(500).json({
-    success: false,
-    message: "Internal server error",
-  });
+// =====================================================
+// REACT FALLBACK
+// =====================================================
+
+// IMPORTANT:
+// This MUST come AFTER all API routes.
+
+app.use((req, res, next) => {
+  // Unknown API route
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({
+      success: false,
+      message: "API endpoint not found",
+    });
+  }
+
+  // React application
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 // =====================================================
@@ -148,5 +169,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Invoice Exception Cockpit API running on port ${PORT}`);
+  console.log("========================================");
+  console.log(`Invoice Exception Cockpit running on port ${PORT}`);
+  console.log(`Frontend: http://localhost:${PORT}`);
+  console.log(`Health:   http://localhost:${PORT}/api/health`);
+  console.log("========================================");
 });
